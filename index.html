@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recomendador de IAs Dinámico</title>
+    <!-- Tailwind CSS para un diseño moderno y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+        /* Estilos del modo día */
+        body.light-mode {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+        
+        /* CORRECCIÓN CRÍTICA: Asegurar el contraste del texto de entrada */
+        /* Modo Oscuro: Texto Blanco */
+        #actividadTexto, #quejasTexto {
+            color: #FFFFFF !important; /* Forzar blanco puro en el campo de búsqueda/quejas */
+            background-color: #374151; /* Fondo ligeramente más claro que el body oscuro */
+        }
+        
+        /* Modo Claro: Texto Oscuro y Fondo Blanco */
+        body.light-mode #actividadTexto, 
+        body.light-mode #quejasTexto {
+            color: #374151 !important; /* Forzar color oscuro */
+            background-color: #FFFFFF; /* Fondo blanco */
+        }
+
+        /* Transiciones y animaciones para las tarjetas de IA */
+        .ia-card-enter {
+            animation: fadeInScale 0.5s ease-out forwards;
+        }
+        .ia-card-enter-stagger {
+            animation: fadeInScale 0.5s ease-out forwards;
+        }
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .initial-fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .animated-icon {
+            transition: transform 0.3s ease-in-out;
+        }
+        .animated-icon:hover {
+            transform: rotate(180deg);
+        }
+        .ia-card {
+            transition: all 0.3s ease-in-out;
+        }
+        .ia-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+        /* Animación para el buzón de quejas */
+        .quejas-box {
+            transform: translateY(150%);
+            transition: transform 0.3s ease-in-out;
+        }
+        .quejas-box.show {
+            transform: translateY(0);
+        }
+        /* Clase para el modo día */
+        .light-mode .bg-gray-900 {
+            background-color: #ffffff;
+        }
+        .light-mode .text-white {
+            color: #1f2937;
+        }
+        .light-mode .bg-gray-800 {
+            background-color: #f9fafb;
+        }
+        .light-mode .ia-card {
+            background-color: #ffffff;
+            border-color: #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .light-mode .ia-card:hover {
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        .light-mode #themeToggle.bg-gray-800 {
+            background-color: #4f46e5; /* Color azul en modo día */
+            color: white;
+        }
+        .light-mode .bg-blue-50 {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+    <!-- Contenedor principal del recomendador -->
+    <div class="w-full max-w-4xl bg-gray-900 rounded-2xl shadow-2xl p-8 space-y-8 light-mode:bg-white light-mode:shadow-xl transition-colors duration-500">
+        <!-- Botón de modo día/noche -->
+        <div class="flex justify-end initial-fade-in">
+            <button id="themeToggle" class="bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-gray-700 transition-all duration-300 animated-icon">
+                <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.364-1.591 1.591M21 12h-2.25m-.364 6.364-1.591-1.591M12 18.75V21m-6.364-.364 1.591-1.591M3 12H5.25m.364-6.364 1.591 1.591M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+                <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 12a9.75 9.75 0 0 0 16.752 7.25Z" />
+                </svg>
+            </button>
+        </div>
+        <!-- Cabecera -->
+        <header class="text-center initial-fade-in">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white light-mode:text-gray-900">Recomendador de IAs</h1>
+            <p class="text-gray-200 mt-2 text-lg light-mode:text-gray-600">Encuentra la herramienta de IA perfecta para tu actividad.</p>
+        </header>
+        <!-- Sección de búsqueda (Input) -->
+        <div class="bg-blue-50 p-6 rounded-xl shadow-inner border border-blue-200 flex flex-col md:flex-row items-center gap-4 initial-fade-in light-mode:bg-white light-mode:border-gray-200">
+            <div class="w-full">
+                <h3 class="text-2xl font-semibold text-blue-700 mb-2 light-mode:text-blue-800">Describe lo que quieres hacer</h3>
+                <!-- Se han quitado las clases de color de Tailwind para que el CSS lo controle con !important -->
+                <textarea id="actividadTexto" placeholder="Ejemplo: Necesito una IA que me ayude a crear un logotipo para mi negocio, que sea gratuita y fácil de usar."
+                    class="w-full h-24 p-4 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 resize-none light-mode:border-gray-300"
+                    onkeyup="if(event.key === 'Enter') performSearch()"></textarea>
+            </div>
+            <button onclick="performSearch()" class="w-full md:w-auto mt-4 md:mt-0 py-3 px-6 bg-blue-500 text-white font-bold rounded-lg shadow-lg hover:bg-blue-600 transition-colors duration-200">
+                Buscar
+            </button>
+        </div>
+        <!-- Botones de filtro -->
+        <div id="menuFiltro" class="hidden initial-fade-in">
+            <div class="flex flex-wrap justify-center gap-4">
+                <button id="btnGratis" onclick="filtrarPorTipo('gratis')" class="py-2 px-6 bg-green-500 text-white font-bold rounded-full shadow-lg hover:bg-green-600 transition-colors duration-200">
+                    Gratuitas
+                </button>
+                <button id="btnPagadas" onclick="filtrarPorTipo('pagadas')" class="py-2 px-6 bg-red-500 text-white font-bold rounded-full shadow-lg hover:bg-red-600 transition-colors duration-200">
+                    Pagadas
+                </button>
+                <button id="btnTodas" onclick="filtrarPorTipo('todas')" class="py-2 px-6 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors duration-200">
+                    Todas
+                </button>
+            </div>
+        </div>
+        <!-- Sección de resultados -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-inner border border-gray-700 light-mode:bg-gray-50 light-mode:border-gray-200 initial-fade-in">
+            <div id="resultado" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Los resultados se mostrarán aquí -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Botón para mostrar/ocultar el buzón de quejas -->
+    <button onclick="toggleQuejasBox()" class="fixed bottom-4 right-4 z-50 p-3 rounded-full bg-blue-500 text-white shadow-lg hover:bg-blue-600 transition-colors duration-300">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+    </button>
+    <!-- Buzón de quejas/sugerencias movido y rediseñado -->
+    <div id="quejasBox" class="fixed bottom-4 right-4 z-40 w-full max-w-xs p-4 rounded-xl shadow-2xl bg-gray-800 border border-gray-700 quejas-box light-mode:bg-white light-mode:border-gray-200">
+        <h3 class="text-xl font-semibold text-gray-200 light-mode:text-gray-700 mb-2">Buzón de Sugerencias y Quejas</h3>
+        <!-- Se han quitado las clases de color de Tailwind para que el CSS lo controle con !important -->
+        <textarea id="quejasTexto" placeholder="Escribe aquí tus comentarios, sugerencias o quejas para ayudarnos a mejorar..."
+            class="w-full h-16 p-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 resize-none light-mode:border-gray-300"></textarea>
+        <button onclick="enviarQueja()" class="mt-3 w-full py-2 px-6 bg-blue-500 text-white font-bold rounded-lg shadow-lg hover:bg-blue-600 transition-colors duration-200">
+            Enviar
+        </button>
+        <p id="mensajeQueja" class="mt-2 text-center text-sm text-gray-400 light-mode:text-gray-500 hidden">¡Gracias por tu comentario!</p>
+    </div>
+    <script>
+        // Datos de IAs categorizadas
+        const iasPorCategoria = {
+            asistente_texto: [
+                { nombre: "Google Gemini", url: "https://gemini.google.com", tipo: "gratis", descripcion: "Asistente de IA multimodal para tareas de texto, código e imágenes.", palabrasClave: ["gemini", "asistente", "multimodal", "conversación", "texto", "código", "imagen", "google"] },
+                { nombre: "ChatGPT", url: "https://openai.com/chatgpt", tipo: "gratis", descripcion: "Asistente conversacional avanzado para responder preguntas, generar contenido y analizar información.", palabrasClave: ["chatgpt", "conversación", "contenido", "texto", "respuesta", "análisis", "openai"] },
+                { nombre: "Claude AI", url: "https://www.anthropic.com/claude", tipo: "gratis", descripcion: "Asistente de IA conversacional conocido por su seguridad y respuestas detalladas.", palabrasClave: ["claude", "conversación", "seguridad", "texto", "respuesta", "anthropic"] },
+                { nombre: "Perplexity AI", url: "https://www.perplexity.ai", tipo: "gratis", descripcion: "Motor de búsqueda conversacional que ofrece respuestas con fuentes verificadas.", palabrasClave: ["perplexity", "búsqueda", "fuentes", "respuesta", "información", "buscador"] },
+                { nombre: "Poe", url: "https://poe.com", tipo: "gratis", descripcion: "Plataforma que centraliza diferentes modelos de IA, como ChatGPT, Claude y Gemini, en un solo lugar.", palabrasClave: ["poe", "chat", "modelos", "conversación", "varios"] },
+                { nombre: "YouChat", url: "https://you.com/chat", tipo: "gratis", descripcion: "Motor de búsqueda conversacional que resume información de la web en tiempo real.", palabrasClave: ["youchat", "buscador", "conversación", "resumen", "web"] },
+                { nombre: "Chinchilla AI", url: "https://www.deepmind.com/publications/an-empirical-analysis-of-compute-optimal-large-language-model-training", tipo: "gratis", descripcion: "Modelo de lenguaje de Google DeepMind para conversaciones y escritura avanzada.", palabrasClave: ["chinchilla", "google", "conversación", "escritura", "deepmind"] },
+                { nombre: "Rytr", url: "https://rytr.me", tipo: "gratis", descripcion: "Generador de contenido para blogs, correos electrónicos y descripciones de productos, con múltiples tonos.", palabrasClave: ["rytr", "escritura", "blog", "marketing", "contenido", "correo"] },
+                { nombre: "Writesonic", url: "https://writesonic.com", tipo: "gratis", descripcion: "Crea contenido optimizado para SEO, anuncios, páginas de destino y artículos.", palabrasClave: ["writesonic", "seo", "marketing", "contenido", "anuncio"] },
+                { nombre: "Microsoft 365 Copilot", url: "https://www.microsoft.com/en-us/microsoft-365/copilot", tipo: "pagadas", descripcion: "IA integrada en las aplicaciones de Microsoft 365 (Word, Excel, PowerPoint) para mejorar la productividad.", palabrasClave: ["copilot", "microsoft", "productividad", "word", "excel", "powerpoint", "documentos"] },
+                { nombre: "Notion AI", url: "https://www.notion.so/ai", tipo: "pagadas", descripcion: "IA integrada en Notion para resumir, escribir y organizar notas y documentos.", palabrasClave: ["notion", "notas", "documentos", "organizar", "escribir", "resumir"] },
+                { nombre: "Jasper", url: "https://www.jasper.ai", tipo: "pagadas", descripcion: "Genera textos de alta calidad para marketing, blogs y redes sociales.", palabrasClave: ["jasper", "escritura", "texto", "blog", "marketing"] },
+                { nombre: "Copy.ai", url: "https://www.copy.ai", tipo: "pagadas", descripcion: "Crea textos de marketing, correos electrónicos y descripciones de productos en segundos.", palabrasClave: ["copy", "marketing", "texto", "anuncios"] },
+                { nombre: "GrammarlyGO", url: "https://go.grammarly.com", tipo: "pagadas", descripcion: "Asistente de escritura para corrección de gramática, estilo y tono.", palabrasClave: ["grammarly", "escritura", "gramática", "corrección", "estilo"] },
+                { nombre: "Sudowrite", url: "https://www.sudowrite.com", tipo: "pagadas", descripcion: "Asistente de escritura creativa para novelistas y escritores de ficción.", palabrasClave: ["sudowrite", "novela", "escritura", "ficción", "creativa"] }
+            ],
+            creatividad_visual: [
+                { nombre: "Canva AI", url: "https://www.canva.com/ai-image-generator", tipo: "gratis", descripcion: "Generador de imágenes de IA integrado en Canva para diseño gráfico y presentaciones.", palabrasClave: ["canva", "diseño", "presentación", "imagen", "gráfico", "logotipo"] },
+                { nombre: "Stable Diffusion", url: "https://stability.ai", tipo: "gratis", descripcion: "Modelo de código abierto para generar imágenes, ideal para alta personalización.", palabrasClave: ["stable diffusion", "imagen", "código abierto", "personalización", "texto", "ia"] },
+                { nombre: "Leonardo.AI", url: "https://leonardo.ai", tipo: "gratis", descripcion: "Genera imágenes de alta calidad con herramientas para el control detallado del estilo.", palabrasClave: ["leonardo", "imagen", "alta calidad", "estilo", "control"] },
+                { nombre: "Pika Labs", url: "https://www.pika.art", tipo: "gratis", descripcion: "Genera videos cortos a partir de texto o imágenes de forma sencilla.", palabrasClave: ["pika", "video", "animación", "creativo"] },
+                { nombre: "Clipdrop", url: "https://clipdrop.co", tipo: "gratis", descripcion: "Conjunto de herramientas de IA para editar imágenes, eliminar objetos, y generar fondos.", palabrasClave: ["clipdrop", "imagen", "edición", "foto"] },
+                { nombre: "Bing Image Creator", url: "https://www.bing.com/images/create", tipo: "gratis", descripcion: "Generador de imágenes de Microsoft, impulsado por DALL-E, para crear imágenes a partir de texto.", palabrasClave: ["bing", "imagen", "microsoft", "creación", "dall-e"] },
+                { nombre: "NightCafe Studio", url: "https://nightcafe.studio", tipo: "gratis", descripcion: "Plataforma de generación de arte con IA con múltiples algoritmos y comunidad.", palabrasClave: ["nightcafe", "arte", "generación", "imagen", "comunidad"] },
+                { nombre: "Lexica Aperture", url: "https://lexica.art", tipo: "gratis", descripcion: "Buscador y generador de imágenes de IA con un enfoque en la calidad visual.", palabrasClave: ["lexica", "imagen", "buscador", "arte"] },
+                { nombre: "Midjourney", url: "https://www.midjourney.com", tipo: "pagadas", descripcion: "Crea imágenes artísticas y de alta calidad a partir de descripciones de texto.", palabrasClave: ["midjourney", "imagen", "arte", "diseño", "creativo"] },
+                { nombre: "DALL-E 3", url: "https://openai.com/dall-e-3", tipo: "pagadas", descripcion: "Genera imágenes realistas y creativas, con gran control sobre los detalles.", palabrasClave: ["dall-e", "imagen", "diseño", "arte", "creativo"] },
+                { nombre: "Adobe Firefly", url: "https://firefly.adobe.com", tipo: "pagadas", descripcion: "Genera imágenes y diseños con IA integrada en el ecosistema de Adobe.", palabrasClaves: ["firefly", "adobe", "imagen", "edición", "creativo"] },
+                { nombre: "HeyGen", url: "https://www.heygen.com", tipo: "pagadas", descripcion: "Crea avatares y vídeos de IA a partir de texto, ideal para marketing y comunicación.", palabrasClave: ["heygen", "video", "avatar", "marketing", "comunicación"] },
+                { nombre: "Runway AI", url: "https://runwayml.com", tipo: "pagadas", descripcion: "Plataforma de IA para la edición de vídeo, animación y generación de contenido visual.", palabrasClave: ["runway", "video", "edición", "animación", "creativo"] },
+                { nombre: "Synthesia", url: "https://www.synthesia.io", tipo: "pagadas", descripcion: "Genera videos de IA con presentadores virtuales a partir de texto.", palabrasClave: ["synthesia", "video", "presentador", "avatar", "marketing"] }
+            ],
+            musica_sonido: [
+                { nombre: "Suno AI", url: "https://www.suno.ai", tipo: "gratis", descripcion: "Genera canciones completas con letra y música a partir de una simple descripción de texto.", palabrasClave: ["suno", "musica", "cancion", "sonido", "audio"] },
+                { nombre: "Udio", url: "https://www.udio.com", tipo: "gratis", descripcion: "Crea música con voces e instrumentos, ofreciendo gran control sobre el estilo y la estructura musical.", palabrasClave: ["udio", "musica", "cancion", "melodia", "sonido"] },
+                { nombre: "MusicLM", url: "https://ai.googleblog.com/2023/01/musiclm-generating-high-fidelity-music.html", tipo: "gratis", descripcion: "Modelo de Google para generar música de alta fidelidad, con capacidad para mezclar estilos.", palabrasClave: ["musiclm", "musica", "google", "sonido", "melodia"] },
+                { nombre: "Amper Music", url: "https://ampermusic.com", tipo: "gratis", descripcion: "Crea música original y libre de derechos de autor para tus proyectos de forma rápida.", palabrasClave: ["amper", "musica", "fondo", "sin copyright"] },
+                { nombre: "Soundful", url: "https://soundful.com", tipo: "gratis", descripcion: "Genera pistas de música personalizadas para vídeos y podcasts.", palabrasClave: ["soundful", "musica", "podcast", "video"] },
+                { nombre: "Mubert", url: "https://mubert.com", tipo: "gratis", descripcion: "Crea música para streaming, vídeos y redes sociales en tiempo real.", palabrasClave: ["mubert", "musica", "streaming", "tiempo real"] },
+                { nombre: "Soundraw", url: "https://soundraw.io", tipo: "pagadas", descripcion: "Generador de música para crear pistas personalizadas sin necesidad de conocimientos musicales.", palabrasClave: ["soundraw", "musica", "creacion", "pista"] },
+                { nombre: "AIVA", url: "https://www.aiva.ai", tipo: "pagadas", descripcion: "Compositor de música para videojuegos, películas y comerciales, especializado en estilos clásicos y de fantasía.", palabrasClave: ["aiva", "compositor", "videojuego", "pelicula"] },
+                { nombre: "Beatoven.ai", url: "https://www.beatoven.ai", tipo: "pagadas", descripcion: "Genera música instrumental única para vídeos, podcasts y juegos.", palabrasClave: ["beatoven", "musica", "instrumental"] },
+                { nombre: "Ecrett Music", url: "https://ecrettmusic.com", tipo: "gratis", descripcion: "Crea música de fondo para vídeos y presentaciones con solo seleccionar el ambiente.", palabrasClave: ["ecrett", "musica", "fondo"] }
+            ],
+            programacion: [
+                { nombre: "GitHub Copilot", url: "https://github.com/features/copilot", tipo: "pagadas", descripcion: "Asistente de codificación de IA que autocompleta código y sugiere funciones completas en varios lenguajes.", palabrasClave: ["github copilot", "programacion", "código", "autocompletar", "desarrollo"] },
+                { nombre: "Amazon CodeWhisperer", url: "https://aws.amazon.com/codewhisperer/", tipo: "pagadas", descripcion: "Genera sugerencias de código en tiempo real y detecta vulnerabilidades de seguridad.", palabrasClave: ["codewhisperer", "amazon", "programacion", "código", "seguridad"] },
+                { nombre: "Tabnine", url: "https://www.tabnine.com", tipo: "gratis", descripcion: "Autocompletado de código basado en IA que se adapta a tu estilo de programación.", palabrasClave: ["tabnine", "programacion", "código", "autocompletar"] },
+                { nombre: "Codeium", url: "https://www.codeium.com", tipo: "gratis", descripcion: "Asistente de código gratuito que ofrece autocompletado y chat para desarrolladores.", palabrasClave: ["codeium", "programacion", "código", "chat"] },
+                { nombre: "Replit Ghostwriter", url: "https://replit.com/site/ghostwriter", tipo: "gratis", descripcion: "IA integrada en la plataforma de desarrollo Replit para generar y completar código.", palabrasClave: ["replit", "programacion", "código", "plataforma"] },
+                { nombre: "Blackbox AI", url: "https://www.blackbox.ai", tipo: "gratis", descripcion: "Herramienta que te permite convertir texto en código y viceversa.", palabrasClave: ["blackbox", "programacion", "código"] },
+                { nombre: "Cursor", url: "https://www.cursor.so", tipo: "gratis", descripcion: "Editor de código con IA que te ayuda a escribir, depurar y refactorizar código más rápido.", palabrasClave: ["cursor", "editor", "código", "depurar", "programación"] },
+                { nombre: "Phind", url: "https://www.phind.com", tipo: "gratis", descripcion: "Motor de búsqueda con IA para desarrolladores, que ofrece respuestas directas a preguntas de codificación.", palabrasClave: ["phind", "buscador", "código", "programación", "desarrollo"] },
+                { nombre: "CodePal", url: "https://codepal.ai", tipo: "gratis", descripcion: "Genera código, explica funciones y refactoriza a partir de lenguaje natural.", palabrasClave: ["codepal", "código", "refactorizar", "explicar", "programación"] },
+                { nombre: "JetBrains AI Assistant", url: "https://www.jetbrains.com/ai/", tipo: "pagadas", descripcion: "IA integrada en los IDE de JetBrains para codificación, revisión y refactorización.", palabrasClave: ["jetbrains", "programacion", "código", "ide"] },
+                { nombre: "Mutable.ai", url: "https://mutable.ai/", tipo: "pagadas", descripcion: "IA para crear aplicaciones web, refactorizar y optimizar código de forma automática.", palabrasClave: ["mutable", "programacion", "aplicaciones", "código"] }
+            ],
+            presentaciones: [
+                { nombre: "Tome", url: "https://beta.tome.app", tipo: "gratis", descripcion: "Crea presentaciones visuales e interactivas a partir de texto de forma instantánea.", palabrasClave: ["tome", "presentación", "diapositivas", "creación"] },
+                { nombre: "Gamma", url: "https://gamma.app", tipo: "gratis", descripcion: "Convierte tus ideas en presentaciones y documentos atractivos con IA.", palabrasClave: ["gamma", "presentación", "documentos", "creación"] },
+                { nombre: "SlidesAI", url: "https://www.slidesai.io", tipo: "gratis", descripcion: "Plugin para Google Slides que genera presentaciones a partir de cualquier texto.", palabrasClave: ["slidesai", "presentación", "diapositivas", "google"] },
+                { nombre: "Beautiful.ai", url: "https://www.beautiful.ai", tipo: "pagadas", descripcion: "Diseña presentaciones automáticamente con plantillas inteligentes y personalización con IA.", palabrasClave: ["beautifulai", "presentación", "plantilla"] },
+                { nombre: "Decktopus", url: "https://www.decktopus.com", tipo: "pagadas", descripcion: "Crea presentaciones profesionales y atractivas en minutos con IA.", palabrasClave: ["decktopus", "presentación", "profesional"] },
+                { nombre: "Presentations.ai", url: "https://www.presentations.ai", tipo: "pagadas", descripcion: "Genera presentaciones inteligentes con IA, enfocadas en la narrativa y el diseño.", palabrasClave: ["presentationsai", "presentación", "diseño"] },
+                { nombre: "Storydoc", url: "https://www.storydoc.com", tipo: "pagadas", descripcion: "Crea presentaciones interactivas y con mucho movimiento para captar la atención de la audiencia.", palabrasClave: ["storydoc", "presentación", "interactiva"] },
+                { nombre: "Simplified", url: "https://simplified.com", tipo: "gratis", descripcion: "Plataforma de marketing con IA que incluye un creador de presentaciones.", palabrasClave: ["simplified", "presentación", "marketing"] },
+                { nombre: "ChatBA", url: "https://chatba.com", tipo: "gratis", descripcion: "Genera diapositivas y presentaciones directamente desde tu chat con IA.", palabrasClave: ["chatba", "presentación", "chat"] },
+                { nombre: "AI-Powered Slides", url: "https://www.visme.co/ai-presentation-maker/", tipo: "pagadas", descripcion: "Genera diapositivas visualmente atractivas con herramientas de IA en Visme.", palabrasClave: ["visme", "presentación", "diapositivas", "creación"] }
+            ],
+            analisis: [
+                { nombre: "Microsoft Power BI", url: "https://powerbi.microsoft.com", tipo: "pagadas", descripcion: "Plataforma de análisis y visualización de datos interactiva, integrada con Microsoft 365.", palabrasClave: ["power bi", "microsoft", "datos", "visualización", "análisis"] },
+                { nombre: "Tableau", url: "https://www.tableau.com", tipo: "pagadas", descripcion: "Herramienta líder para visualización y análisis de datos, ideal para gráficos complejos.", palabrasClave: ["tableau", "datos", "visualización", "análisis", "informe"] },
+                { nombre: "Google Looker Studio", url: "https://lookerstudio.google.com", tipo: "gratis", descripcion: "Crea informes y paneles de datos personalizados con integración a fuentes de Google.", palabrasClave: ["looker studio", "google", "datos", "informe", "panel"] },
+                { nombre: "Julius AI", url: "https://julius.ai", tipo: "pagadas", descripcion: "Analiza y visualiza datos con una interfaz conversacional, ideal para no-expertos.", palabrasClave: ["julius", "análisis", "datos", "conversacional"] },
+                { nombre: "Databricks", url: "https://databricks.com", tipo: "pagadas", descripcion: "Plataforma unificada para ciencia de datos, machine learning y análisis de datos.", palabrasClave: ["databricks", "datos", "machine learning", "análisis"] },
+                { nombre: "Akkio", url: "https://www.akkio.com", tipo: "gratis", descripcion: "Análisis predictivo y construcción de modelos de machine learning sin necesidad de código.", palabrasClave: ["akkio", "análisis", "predictivo", "machine learning"] },
+                { nombre: "RapidMiner", url: "https://rapidminer.com", tipo: "gratis", descripcion: "Plataforma de análisis de datos y machine learning con enfoque en la automatización.", palabrasClave: ["rapidminer", "datos", "machine learning", "automatización"] },
+                { nombre: "KNIME", url: "https://www.knime.com", tipo: "gratis", descripcion: "Herramienta de código abierto para análisis de datos y flujos de trabajo de IA.", palabrasClave: ["knime", "código abierto", "análisis", "flujo de trabajo"] },
+                { nombre: "Deepnote", url: "https://deepnote.com", tipo: "gratis", descripcion: "Cuaderno de datos colaborativo con IA para explorar, analizar y visualizar datos.", palabrasClave: ["deepnote", "datos", "colaboración", "cuaderno", "análisis"] },
+                { nombre: "ChartGPT", url: "https://chartgpt.io", tipo: "gratis", descripcion: "Convierte tus datos de texto en gráficos y visualizaciones interactivas.", palabrasClave: ["chartgpt", "gráfico", "visualización", "datos"] },
+                { nombre: "Dataiku", url: "https://www.dataiku.com", tipo: "pagadas", descripcion: "Plataforma de IA y análisis de datos de extremo a extremo para empresas.", palabrasClave: ["dataiku", "datos", "análisis", "extremo a extremo"] }
+            ],
+            investigacion: [
+                { nombre: "Elicit", url: "https://elicit.org", tipo: "gratis", descripcion: "Encuentra y resume papers de investigación relevantes para tu pregunta.", palabrasClave: ["elicit", "investigacion", "papers", "resumen", "ciencia"] },
+                { nombre: "Consensus", url: "https://consensus.app", tipo: "gratis", descripcion: "Busca y extrae hallazgos de artículos académicos con el poder de la IA.", palabrasClave: ["consensus", "investigacion", "articulo", "hallazgo"] },
+                { nombre: "Scite.ai", url: "https://scite.ai", tipo: "pagadas", descripcion: "Muestra cómo ha sido citado un artículo y si las citas lo apoyan o lo contradicen.", palabrasClave: ["scite", "investigacion", "cita", "academico"] },
+                { nombre: "Paperpal", url: "https://paperpal.com", tipo: "pagadas", descripcion: "Asistente de escritura y corrección para papers académicos, mejora la gramática y el estilo.", palabrasClave: ["paperpal", "investigacion", "escritura", "academico"] },
+                { nombre: "Litmaps", url: "https://litmaps.com", tipo: "pagadas", descripcion: "Crea mapas visuales para explorar la literatura científica, encontrar conexiones y papers relacionados.", palabrasClave: ["litmaps", "investigacion", "literatura", "mapa"] },
+                { nombre: "Research Rabbit", url: "https://www.researchrabbit.ai", tipo: "gratis", descripcion: "Te ayuda a construir una biblioteca de investigación y encontrar papers relevantes de forma visual.", palabrasClave: ["research rabbit", "investigacion", "papers", "biblioteca"] },
+                { nombre: "Semantic Scholar", url: "https://www.semanticscholar.org", tipo: "gratis", descripcion: "Buscador de literatura científica que utiliza IA para resaltar los puntos clave de los artículos.", palabrasClave: ["semantic scholar", "investigacion", "ciencia", "busqueda"] },
+                { nombre: "Connected Papers", url: "https://www.connectedpapers.com", tipo: "gratis", descripcion: "Genera un gráfico de artículos conectados para explorar el campo de investigación de un paper.", palabrasClave: ["connected papers", "investigacion", "grafico"] },
+                { nombre: "Explainpaper", url: "https://www.explainpaper.com", tipo: "gratis", descripcion: "Sube un paper y haz preguntas sobre él para que la IA te lo explique de forma sencilla.", palabrasClave: ["explainpaper", "investigacion", "explicar", "ciencia"] },
+                { nombre: "Scholarcy", url: "https://www.scholarcy.com", tipo: "pagadas", descripcion: "Crea tarjetas de estudio a partir de documentos de investigación, resumiendo los puntos clave.", palabrasClave: ["scholarcy", "investigacion", "resumen", "estudio"] },
+                { nombre: "Typeset", url: "https://www.typeset.io", tipo: "gratis", descripcion: "Convierte borradores de investigación en documentos con el formato académico correcto, utilizando IA para el estilo y la estructura.", palabrasClave: ["typeset", "investigación", "formato", "académico", "escritura"] }
+            ],
+            educacion: [
+                { nombre: "Khan Academy", url: "https://www.khanacademy.org", tipo: "gratis", descripcion: "Plataforma educativa con lecciones, ejercicios y resúmenes con IA para estudiantes.", palabrasClave: ["khan academy", "educación", "aprendizaje", "lección", "ejercicio", "matematicas", "ciencias", "historia"] },
+                { nombre: "Duolingo", url: "https://www.duolingo.com", tipo: "gratis", descripcion: "Aprendizaje de idiomas gamificado y adaptativo con IA.", palabrasClave: ["duolingo", "idioma", "aprendizaje", "juego"] },
+                { nombre: "Coursera", url: "https://www.coursera.org", tipo: "pagadas", descripcion: "Cursos en línea de universidades líderes, con herramientas de IA para aprendizaje.", palabrasClave: ["coursera", "curso", "universidad", "online", "aprendizaje"] },
+                { nombre: "Quizlet", url: "https://quizlet.com", tipo: "gratis", descripcion: "Herramienta de estudio con tarjetas didácticas, pruebas y resúmenes de IA.", palabrasClave: ["quizlet", "estudio", "tarjeta", "prueba", "resumen"] },
+                { nombre: "Photomath", url: "https://photomath.com", tipo: "gratis", descripcion: "Resuelve problemas matemáticos con la cámara del teléfono y ofrece explicaciones paso a paso.", palabrasClave: ["photomath", "matemáticas", "problema", "cámara"] },
+                { nombre: "Socratic", url: "https://socratic.org", tipo: "gratis", descripcion: "Asistente educativo de Google que ayuda a resolver tareas y ofrece explicaciones visuales.", palabrasClave: ["socratic", "educación", "tarea", "explicación", "estudio", "ciencias"] },
+                { nombre: "DreamBox Learning", url: "https://www.dreambox.com", tipo: "pagadas", descripcion: "Personaliza el aprendizaje de matemáticas en tiempo real para estudiantes.", palabrasClave: ["dreambox", "matemáticas", "aprendizaje", "personalizado"] },
+                { nombre: "Knewton", url: "https://www.knewton.com", tipo: "pagadas", descripcion: "Plataforma de aprendizaje adaptativo que ajusta el contenido según el progreso del estudiante.", palabrasClave: ["knewton", "aprendizaje", "adaptativo", "plataforma"] },
+                { nombre: "Copilot Education", url: "https://education.microsoft.com/copilot", tipo: "pagadas", descripcion: "Integra IA en el entorno de Microsoft 365 para reducir el tiempo de planificación y calificación de profesores.", palabrasClave: ["copilot", "microsoft", "educación", "planificación", "calificación"] },
+                { nombre: "Lingo", url: "https://getlingo.ai", tipo: "pagadas", descripcion: "Asistente de lectura y escritura para estudiantes, con resúmenes y explicaciones rápidas.", palabrasClave: ["lingo", "lectura", "escritura", "resumen", "estudiante"] }
+            ]
+        };
+
+        let currentResults = [];
+        let currentFilter = 'todas';
+
+        function performSearch() {
+            const menuFiltro = document.getElementById("menuFiltro");
+            menuFiltro.classList.remove("hidden");
+            const texto = document.getElementById("actividadTexto").value.toLowerCase();
+            let iasRecomendadas = [];
+            
+            // 1. Encontrar IAs que coincidan con las palabras clave en el texto
+            for (const categoria in iasPorCategoria) {
+                iasPorCategoria[categoria].forEach(ia => {
+                    // Combinar nombre, descripción y palabras clave para una mejor coincidencia
+                    const searchString = `${ia.nombre} ${ia.descripcion} ${ia.palabrasClave.join(" ")}`.toLowerCase();
+                    
+                    // Buscar coincidencia simple en la descripción o palabras clave
+                    let coincide = ia.palabrasClave.some(palabra => texto.includes(palabra));
+
+                    // Reforzar la búsqueda por categorías si el texto es muy genérico
+                    if (!coincide) {
+                        const categoriaMatch = {
+                            "texto": ["conversación", "escribir", "texto", "resumir", "documento", "correo"],
+                            "visual": ["imagen", "diseño", "foto", "video", "logotipo", "gráfico", "arte"],
+                            "musica": ["música", "canción", "sonido", "audio", "melodía"],
+                            "código": ["programación", "código", "desarrollo", "autocompletar"],
+                            "presentación": ["presentación", "diapositiva", "deck"],
+                            "análisis": ["datos", "análisis", "visualización", "informe"],
+                            "investigación": ["paper", "académico", "investigación", "ciencia"],
+                            "educación": ["estudio", "tarea", "aprendizaje", "examen"]
+                        };
+                        for (const key in categoriaMatch) {
+                            if (categoriaMatch[key].some(palabra => texto.includes(palabra))) {
+                                if (categoria.includes(key)) {
+                                    coincide = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (coincide && !iasRecomendadas.includes(ia)) {
+                        iasRecomendadas.push(ia);
+                    }
+                });
+            }
+
+            // 2. Determinar el filtro inicial de pago (si se especifica en el texto)
+            let tipoFiltrado;
+            if (texto.includes("gratis") || texto.includes("gratuita")) {
+                tipoFiltrado = "gratis";
+            } else if (texto.includes("pagada") || texto.includes("costo") || texto.includes("pago")) {
+                tipoFiltrado = "pagadas";
+            } else {
+                tipoFiltrado = "todas";
+            }
+
+            // 3. Aplicar el filtro y actualizar el estado
+            currentResults = iasRecomendadas;
+            currentFilter = tipoFiltrado;
+            let resultadosFinales = currentResults.filter(ia => currentFilter === "todas" || ia.tipo === currentFilter);
+            
+            // 4. Mostrar resultados
+            mostrarRecomendaciones(resultadosFinales, `IAs recomendadas para tu actividad (${resultadosFinales.length} encontradas):`);
+            updateFilterButtons();
+        }
+
+        function filtrarPorTipo(tipo) {
+            currentFilter = tipo;
+            let resultadosFinales = currentResults.filter(ia => tipo === "todas" || ia.tipo === tipo);
+            mostrarRecomendaciones(resultadosFinales, `IAs filtradas por tipo (${tipo}):`);
+            updateFilterButtons();
+        }
+
+        function updateFilterButtons() {
+            // Eliminar clases activas de todos
+            document.getElementById("btnGratis").classList.remove('bg-opacity-75', 'ring-2', 'ring-white');
+            document.getElementById("btnPagadas").classList.remove('bg-opacity-75', 'ring-2', 'ring-white');
+            document.getElementById("btnTodas").classList.remove('bg-opacity-75', 'ring-2', 'ring-white');
+            
+            // Agregar clase activa al botón actual
+            const activeButton = document.getElementById(`btn${currentFilter.charAt(0).toUpperCase() + currentFilter.slice(1)}`);
+            if (activeButton) {
+                activeButton.classList.add('bg-opacity-75', 'ring-2', 'ring-white');
+            }
+        }
+
+        function mostrarRecomendaciones(ias, titulo) {
+            const resultadoDiv = document.getElementById("resultado");
+            resultadoDiv.innerHTML = `<h3 class="col-span-full text-center text-2xl font-semibold text-gray-200 light-mode:text-gray-700 mb-6">${titulo}</h3>`;
+            
+            if (ias.length > 0) {
+                ias.forEach((ia, index) => {
+                    const iaCard = document.createElement('div');
+                    iaCard.className = 'ia-card bg-gray-700 text-gray-200 p-6 rounded-xl shadow-md transform transition-all duration-300 border border-gray-600 light-mode:bg-gray-100 light-mode:text-gray-800 light-mode:border-gray-300 ia-card-enter';
+                    iaCard.style.animationDelay = `${index * 0.1}s`;
+                    
+                    const tipoBadge = ia.tipo === 'gratis' ? 'bg-green-600' : 'bg-red-600';
+                    
+                    const htmlContent = `
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="text-xl font-bold text-white light-mode:text-gray-900">${ia.nombre}</h4>
+                                <span class="inline-block py-1 px-3 rounded-full text-xs font-semibold uppercase mt-1 ${tipoBadge} text-white">
+                                    ${ia.tipo}
+                                </span>
+                            </div>
+                            <a href="${ia.url}" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline text-sm font-medium light-mode:text-blue-700 transition-colors duration-200 flex items-center gap-1">
+                                Ir al sitio
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                </svg>
+                            </a>
+                        </div>
+                        <p class="text-gray-400 text-sm light-mode:text-gray-600">${ia.descripcion}</p>
+                    `;
+                    iaCard.innerHTML = htmlContent;
+                    resultadoDiv.appendChild(iaCard);
+                });
+            } else {
+                resultadoDiv.innerHTML += `<p class="col-span-full text-center text-gray-400 light-mode:text-gray-600">No se encontraron IAs que coincidan con los criterios. Intenta una descripción diferente o más general.</p>`;
+            }
+        }
+
+        function enviarQueja() {
+            const quejasTexto = document.getElementById("quejasTexto");
+            const mensajeQueja = document.getElementById("mensajeQueja");
+            if (quejasTexto.value.trim() !== "") {
+                // Aquí iría la lógica para guardar la queja en una base de datos (Firestore)
+                // Por ahora, solo simulamos el envío:
+                console.log("Queja/Sugerencia enviada:", quejasTexto.value.trim());
+
+                quejasTexto.value = "";
+                mensajeQueja.classList.remove("hidden");
+                setTimeout(() => {
+                    mensajeQueja.classList.add("hidden");
+                    toggleQuejasBox(); // Ocultar después de enviar
+                }, 2000);
+            }
+        }
+        
+        function toggleQuejasBox() {
+            const quejasBox = document.getElementById("quejasBox");
+            quejasBox.classList.toggle("show");
+        }
+
+        function toggleTheme() {
+            const body = document.body;
+            const themeToggle = document.getElementById("themeToggle");
+            const sunIcon = document.getElementById("sunIcon");
+            const moonIcon = document.getElementById("moonIcon");
+            
+            body.classList.toggle('light-mode');
+            sunIcon.classList.toggle('hidden');
+            moonIcon.classList.toggle('hidden');
+
+            // Actualizar botones de filtro para el nuevo modo
+            if (body.classList.contains('light-mode')) {
+                localStorage.setItem('theme', 'light');
+                themeToggle.classList.remove('bg-gray-800', 'hover:bg-gray-700');
+                themeToggle.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            } else {
+                localStorage.setItem('theme', 'dark');
+                themeToggle.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                themeToggle.classList.add('bg-gray-800', 'hover:bg-gray-700');
+            }
+            updateFilterButtons();
+        }
+
+        window.onload = function() {
+            // Cargar tema guardado
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+                document.getElementById("sunIcon").classList.remove('hidden');
+                document.getElementById("moonIcon").classList.add('hidden');
+                document.getElementById("themeToggle").classList.remove('bg-gray-800', 'hover:bg-gray-700');
+                document.getElementById("themeToggle").classList.add('bg-blue-500', 'hover:bg-blue-600');
+            }
+            
+            document.getElementById("themeToggle").onclick = toggleTheme;
+            
+            // Mensaje inicial
+            mostrarRecomendaciones([], "Ingresa tu actividad para encontrar una IA ideal");
+
+            // Mostrar el buzón de quejas inicialmente fuera de la vista
+            document.getElementById("quejasBox").classList.remove("show");
+        };
+    </script>
+</body>
+</html>
