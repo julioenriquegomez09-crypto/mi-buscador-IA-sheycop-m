@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recomendador de IAs Dinámico</title>
+    <!-- Tailwind CSS para un diseño moderno y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Definición de la fuente Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Fondo oscuro por defecto */
+            color: #e2e8f0;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+        /* Estilos del modo día */
+        body.light-mode {
+            background-color: #f3f4f6;
+            color: #374151;
+        }
+        /* Clases de utilidad para aplicar estilos solo en modo día (evita la necesidad de :hover en las clases de modo día en el HTML) */
+        .light-mode .light-mode\:text-gray-900 { color: #111827; }
+        .light-mode .light-mode\:text-gray-600 { color: #4b5563; }
+        .light-mode .light-mode\:bg-white { background-color: #ffffff; }
+        .light-mode .light-mode\:shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+        .light-mode .light-mode\:border-gray-200 { border-color: #e5e7eb; }
+        .light-mode .light-mode\:text-blue-800 { color: #1e40af; }
+        .light-mode .light-mode\:border-gray-300 { border-color: #d1d5db; }
+        .light-mode .light-mode\:text-gray-700 { color: #374151; }
+        .light-mode .light-mode\:text-gray-800 { color: #1f2937; }
+        .light-mode .light-mode\:text-blue-700 { color: #1d4ed8; }
+        
+        /* Animaciones para la entrada de las tarjetas de IA */
+        .ia-card-enter {
+            animation: fadeInScale 0.5s ease-out forwards;
+        }
+        /* Staggering (retraso) se aplica con JS */
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .initial-fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        /* Animación para el botón de tema */
+        .animated-icon {
+            transition: transform 0.3s ease-in-out;
+        }
+        .animated-icon:hover {
+            transform: rotate(180deg);
+        }
+        /* Animación para las tarjetas de resultado */
+        .ia-card {
+            transition: all 0.3s ease-in-out;
+        }
+        .ia-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+        }
+        /* Estilos para el buzón de quejas (modal flotante) */
+        .quejas-box {
+            position: fixed;
+            bottom: 6rem; /* Deja espacio para el botón de toggle */
+            right: 1rem;
+            opacity: 0;
+            pointer-events: none; /* No interactuable cuando está oculto */
+            transform: translateY(20px);
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            z-index: 50; /* Asegura que esté sobre el contenido */
+        }
+        .quejas-box.show {
+            opacity: 1;
+            pointer-events: auto; /* Interactuable cuando está visible */
+            transform: translateY(0);
+        }
+
+        /* --- Estilos y Animaciones del Modal de Introducción (Fuego) --- */
+        #introModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        /* Animación de fondo sutil que simula el movimiento del fuego/resplandor */
+        @keyframes flame-gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .flame-bg {
+            background: linear-gradient(-45deg, #ff4500, #ff8c00, #ff0000, #ffa500);
+            background-size: 400% 400%;
+            animation: flame-gradient 15s ease infinite;
+        }
+
+        /* Efecto de pulso en el contenedor principal del modal para darle más vida */
+        @keyframes fire-pulse {
+            0% { box-shadow: 0 0 10px rgba(255, 69, 0, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(255, 140, 0, 0.8), 0 0 5px rgba(255, 0, 0, 0.6); }
+            100% { box-shadow: 0 0 10px rgba(255, 69, 0, 0.5); }
+        }
+        .modal-content-fire {
+             animation: fire-pulse 4s infinite ease-in-out;
+             transform: scale(1.0);
+             transition: transform 0.3s ease-in-out;
+        }
+
+        /* Estilo del botón de inicio */
+        .fire-button {
+            border: 2px solid #FFA500;
+            background-color: #FF4500;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 5px 15px rgba(255, 69, 0, 0.5);
+        }
+        .fire-button:hover {
+            box-shadow: 0 0 30px #ff8c00, 0 0 15px #ff4500;
+            transform: scale(1.05);
+        }
+        
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Modal de Introducción con tema de Fuego -->
+    <!-- Por defecto NO tiene la clase 'hidden', pero la función JS lo oculta al inicio si se llama inmediatamente. -->
+    <div id="introModal">
+        <div class="max-w-md w-full mx-4 p-8 rounded-xl shadow-2xl relative overflow-hidden modal-content-fire" 
+             style="background-color: #2D3748;">
+            
+            <!-- Contenedor del Resplandor de Fuego (Detrás) -->
+            <div class="absolute inset-0 z-0 flame-bg opacity-30 rounded-xl"></div>
+            
+            <!-- Contenido del Modal (Encima del Resplandor) -->
+            <div class="relative z-10 text-center text-white">
+                <!-- Icono de Llama Vibrante -->
+                <svg xmlns="http://www.w3.org/2000/svg" fill="#FF4500" viewBox="0 0 24 24" stroke-width="0" stroke="currentColor" class="w-24 h-24 mx-auto mb-4 animate-bounce">
+                    <path fill-rule="evenodd" d="M12.971 21.043a.75.75 0 0 1-.922 0l-4.5-3.75a.75.75 0 0 1 0-1.216L12 11.455l4.5 4.622a.75.75 0 0 1 0 1.216l-4.5 3.75Zm.922-15.111 4.5 3.75a.75.75 0 0 1 0 1.216L12 16.545l-4.5-4.622a.75.75 0 0 1 0-1.216l4.5-3.75a.75.75 0 0 1 .922 0Z" clip-rule="evenodd" />
+                </svg>
+
+                <h2 class="text-5xl font-extrabold mb-4 text-transparent bg-clip-text" 
+                    style="background-image: linear-gradient(45deg, #FFD700, #FF4500); -webkit-background-clip: text; color: transparent;">
+                    ¡Enciende tu búsqueda!
+                </h2>
+                <p class="text-lg text-gray-100 mb-8 font-medium">
+                    Estás a punto de desatar el poder de la Inteligencia Artificial.
+                    Describe tu proyecto y encuentra la herramienta perfecta.
+                </p>
+                <!-- Botón de Cierre Instantáneo -->
+                <button id="closeModalButton" onclick="closeIntroModal()" 
+                        class="fire-button w-full py-3 px-6 text-xl font-extrabold rounded-lg shadow-2xl transition-all duration-300 transform active:scale-90">
+                    ¡EMPEZAR!
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- Fin Modal de Introducción -->
+
+    <div class="w-full max-w-4xl bg-gray-900 rounded-2xl shadow-2xl p-8 space-y-8 light-mode:bg-white light-mode:shadow-xl transition-colors duration-500">
+        
+        <!-- Botón de modo día/noche -->
+        <div class="flex justify-end initial-fade-in">
+            <button id="themeToggle" class="bg-gray-800 text-white p-2 rounded-full shadow-lg hover:bg-gray-700 transition-all duration-300 animated-icon">
+                <!-- Icono de Sol (Modo Día) -->
+                <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.364-1.591 1.591M21 12h-2.25m-.364 6.364-1.591-1.591M12 18.75V21m-6.364-.364 1.591-1.591M3 12H5.25m.364-6.364 1.591 1.591M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+                <!-- Icono de Luna (Modo Noche) -->
+                <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 12a9.75 9.75 0 0 0 16.752 7.25Z" />
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Cabecera -->
+        <header class="text-center initial-fade-in">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white light-mode:text-gray-900">Recomendador de IAs</h1>
+            <p class="text-gray-200 mt-2 text-lg light-mode:text-gray-600">Encuentra la herramienta de IA perfecta para tu actividad.</p>
+        </header>
+        
+        <!-- Sección de búsqueda -->
+        <div class="bg-blue-50 p-6 rounded-xl shadow-inner border border-blue-200 flex flex-col md:flex-row items-center gap-4 initial-fade-in light-mode:bg-white light-mode:border-gray-200">
+            <div class="w-full">
+                <h3 class="text-2xl font-semibold text-blue-700 mb-2 light-mode:text-blue-800">Describe lo que quieres hacer</h3>
+                <textarea id="actividadTexto" placeholder="Ejemplo: Necesito una IA que me ayude a crear un logotipo para mi negocio, que sea gratuita y fácil de usar."
+                    class="w-full h-24 p-4 text-lg border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 resize-none text-gray-800 dark:bg-gray-700 dark:text-gray-200 light-mode:bg-white light-mode:text-gray-700 light-mode:border-gray-300"
+                    onkeyup="if(event.key === 'Enter') performSearch()"></textarea>
+            </div>
+            <button onclick="performSearch()" class="w-full md:w-auto mt-4 md:mt-0 py-3 px-6 bg-blue-500 text-white font-bold rounded-lg shadow-lg hover:bg-blue-600 transition-colors duration-200 whitespace-nowrap">
+                Buscar IAs
+            </button>
+        </div>
+        
+        <!-- Botones de filtro -->
+        <div id="menuFiltro" class="hidden initial-fade-in pt-4">
+            <h4 class="text-center text-gray-300 light-mode:text-gray-700 mb-3 text-lg font-medium">Filtrar resultados:</h4>
+            <div class="flex flex-wrap justify-center gap-4">
+                <button onclick="filtrarPorTipo('gratis')" class="py-2 px-6 bg-green-500 text-white font-bold rounded-full shadow-lg hover:bg-green-600 transition-colors duration-200">
+                    <span class="mr-1"> ?? </span> Gratuitas
+                </button>
+                <button onclick="filtrarPorTipo('pagadas')" class="py-2 px-6 bg-red-500 text-white font-bold rounded-full shadow-lg hover:bg-red-600 transition-colors duration-200">
+                    <span class="mr-1"> ?? </span> Pagadas
+                </button>
+                <button onclick="filtrarPorTipo('todas')" class="py-2 px-6 bg-blue-500 text-white font-bold rounded-full shadow-lg hover:bg-blue-600 transition-colors duration-200">
+                    <span class="mr-1"> ? </span> Todas
+                </button>
+            </div>
+        </div>
+        
+        <!-- Sección de resultados -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-inner border border-gray-700 light-mode:bg-gray-50 light-mode:border-gray-200 initial-fade-in">
+            <div id="resultado" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Los resultados se mostrarán aquí -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Buzón de quejas/sugerencias (Modal flotante) -->
+    <div id="quejasBox" class="quejas-box w-full max-w-xs p-4 rounded-xl shadow-2xl bg-gray-800 border border-gray-700 light-mode:bg-white light-mode:border-gray-200">
+        <h3 class="text-xl font-semibold text-gray-200 light-mode:text-gray-700 mb-2 flex justify-between items-center">
+            Buzón de Sugerencias
+            <button onclick="toggleQuejasBox()" class="text-gray-400 hover:text-white light-mode:hover:text-gray-900 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </h3>
+        <textarea id="quejasTexto" placeholder="Escribe aquí tus comentarios, sugerencias o quejas..."
+            class="w-full h-20 p-3 text-sm border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200 resize-none text-gray-800 dark:bg-gray-700 dark:text-gray-200 light-mode:bg-white light-mode:text-gray-700 light-mode:border-gray-300"></textarea>
+        <button onclick="enviarQueja()" class="mt-3 w-full py-2 px-6 bg-blue-500 text-white font-bold rounded-lg shadow-lg hover:bg-blue-600 transition-colors duration-200">
+            Enviar
+        </button>
+        <!-- Mensaje de confirmación -->
+        <p id="mensajeQueja" class="mt-2 text-center text-sm text-green-400 light-mode:text-green-600 hidden font-semibold">¡Gracias por tu comentario!</p>
+    </div>
+    
+    <!-- Botón fijo para mostrar/ocultar el buzón de quejas -->
+    <button onclick="toggleQuejasBox()" class="fixed bottom-4 right-4 z-50 p-3 rounded-full bg-blue-500 text-white shadow-lg hover:bg-blue-600 transition-colors duration-300">
+        <svg id="buzonIcon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+    </button>
+    
+    <script>
+        // Definición de las herramientas de IA por categoría y su información
+        // Esto simula una base de datos de IAs
+        const iasPorCategoria = {
+            asistente_texto: [
+                { nombre: "Google Gemini", url: "https://gemini.google.com", tipo: "gratis", descripcion: "Asistente de IA multimodal para tareas de texto, código e imágenes.", palabrasClave: ["gemini", "asistente", "multimodal", "conversación", "texto", "código", "imagen", "google"] },
+                { nombre: "ChatGPT", url: "https://openai.com/chatgpt", tipo: "gratis", descripcion: "Asistente conversacional avanzado para responder preguntas, generar contenido y analizar información.", palabrasClave: ["chatgpt", "conversación", "contenido", "texto", "respuesta", "análisis", "openai"] },
+                { nombre: "Claude AI", url: "https://www.anthropic.com/claude", tipo: "gratis", descripcion: "Asistente de IA conversacional conocido por su seguridad y respuestas detalladas.", palabrasClave: ["claude", "conversación", "seguridad", "texto", "respuesta", "anthropic"] },
+                { nombre: "Perplexity AI", url: "https://www.perplexity.ai", tipo: "gratis", descripcion: "Motor de búsqueda conversacional que ofrece respuestas con fuentes verificadas.", palabrasClave: ["perplexity", "búsqueda", "fuentes", "respuesta", "información", "buscador"] },
+                { nombre: "Poe", url: "https://poe.com", tipo: "gratis", descripcion: "Plataforma que centraliza diferentes modelos de IA, como ChatGPT, Claude y Gemini, en un solo lugar.", palabrasClave: ["poe", "chat", "modelos", "conversación", "varios"] },
+                { nombre: "YouChat", url: "https://you.com/chat", tipo: "gratis", descripcion: "Motor de búsqueda conversacional que resume información de la web en tiempo real.", palabrasClave: ["youchat", "buscador", "conversación", "resumen", "web"] },
+                { nombre: "Rytr", url: "https://rytr.me", tipo: "gratis", descripcion: "Generador de contenido para blogs, correos electrónicos y descripciones de productos, con múltiples tonos.", palabrasClave: ["rytr", "escritura", "blog", "marketing", "contenido", "correo"] },
+                { nombre: "Writesonic", url: "https://writesonic.com", tipo: "gratis", descripcion: "Crea contenido optimizado para SEO, anuncios, páginas de destino y artículos.", palabrasClave: ["writesonic", "seo", "marketing", "contenido", "anuncio"] },
+                { nombre: "Microsoft 365 Copilot", url: "https://www.microsoft.com/en-us/microsoft-365/copilot", tipo: "pagadas", descripcion: "IA integrada en las aplicaciones de Microsoft 365 (Word, Excel, PowerPoint) para mejorar la productividad.", palabrasClave: ["copilot", "microsoft", "productividad", "word", "excel", "powerpoint", "documentos"] },
+                { nombre: "Notion AI", url: "https://www.notion.so/ai", tipo: "pagadas", descripcion: "IA integrada en Notion para resumir, escribir y organizar notas y documentos.", palabrasClave: ["notion", "notas", "documentos", "organizar", "escribir", "resumir"] },
+                { nombre: "Jasper", url: "https://www.jasper.ai", tipo: "pagadas", descripcion: "Genera textos de alta calidad para marketing, blogs y redes sociales.", palabrasClave: ["jasper", "escritura", "texto", "blog", "marketing"] },
+                { nombre: "Copy.ai", url: "https://www.copy.ai", tipo: "pagadas", descripcion: "Crea textos de marketing, correos electrónicos y descripciones de productos en segundos.", palabrasClave: ["copy", "marketing", "texto", "anuncios"] },
+                { nombre: "GrammarlyGO", url: "https://go.grammarly.com", tipo: "pagadas", descripcion: "Asistente de escritura para corrección de gramática, estilo y tono.", palabrasClave: ["grammarly", "escritura", "gramática", "corrección", "estilo"] },
+            ],
+            creatividad_visual: [
+                { nombre: "Canva AI", url: "https://www.canva.com/ai-image-generator", tipo: "gratis", descripcion: "Generador de imágenes de IA integrado en Canva para diseño gráfico y presentaciones.", palabrasClave: ["canva", "diseño", "presentación", "imagen", "gráfico", "logotipo", "logo"] },
+                { nombre: "Stable Diffusion", url: "https://stability.ai", tipo: "gratis", descripcion: "Modelo de código abierto para generar imágenes, ideal para alta personalización.", palabrasClave: ["stable diffusion", "imagen", "código abierto", "personalización", "texto", "diseño"] },
+                { nombre: "Leonardo.AI", url: "https://leonardo.ai", tipo: "gratis", descripcion: "Genera imágenes de alta calidad con herramientas para el control detallado del estilo.", palabrasClave: ["leonardo", "imagen", "alta calidad", "estilo", "control", "diseño"] },
+                { nombre: "Pika Labs", url: "https://www.pika.art", tipo: "gratis", descripcion: "Genera videos cortos a partir de texto o imágenes de forma sencilla.", palabrasClave: ["pika", "video", "animación", "creativo"] },
+                { nombre: "Clipdrop", url: "https://clipdrop.co", tipo: "gratis", descripcion: "Conjunto de herramientas de IA para editar imágenes, eliminar objetos, y generar fondos.", palabrasClave: ["clipdrop", "imagen", "edición", "foto"] },
+                { nombre: "Bing Image Creator", url: "https://www.bing.com/images/create", tipo: "gratis", descripcion: "Generador de imágenes de Microsoft, impulsado por DALL-E, para crear imágenes a partir de texto.", palabrasClave: ["bing", "imagen", "microsoft", "creación", "dall-e"] },
+                { nombre: "Midjourney", url: "https://www.midjourney.com", tipo: "pagadas", descripcion: "Crea imágenes artísticas y de alta calidad a partir de descripciones de texto.", palabrasClave: ["midjourney", "imagen", "arte", "diseño", "creativo"] },
+                { nombre: "DALL-E 3", url: "https://openai.com/dall-e-3", tipo: "pagadas", descripcion: "Genera imágenes realistas y creativas, con gran control sobre los detalles.", palabrasClave: ["dall-e", "imagen", "diseño", "arte", "creativo"] },
+                { nombre: "Adobe Firefly", url: "https://firefly.adobe.com", tipo: "pagadas", descripcion: "Genera imágenes y diseños con IA integrada en el ecosistema de Adobe.", palabrasClave: ["firefly", "adobe", "imagen", "edición", "creativo", "logotipo"] },
+                { nombre: "HeyGen", url: "https://www.heygen.com", tipo: "pagadas", descripcion: "Crea avatares y vídeos de IA a partir de texto, ideal para marketing y comunicación.", palabrasClave: ["heygen", "video", "avatar", "marketing", "comunicación"] },
+                { nombre: "Runway AI", url: "https://runwayml.com", tipo: "pagadas", descripcion: "Plataforma de IA para la edición de vídeo, animación y generación de contenido visual.", palabrasClave: ["runway", "video", "edición", "animación", "creativo"] },
+            ],
+            codificacion_analisis: [
+                { nombre: "GitHub Copilot", url: "https://github.com/features/copilot", tipo: "pagadas", descripcion: "Asistente de codificación basado en IA que sugiere código y completa funciones.", palabrasClave: ["copilot", "github", "código", "programación", "asistente", "desarrollo"] },
+                { nombre: "CodeWhisperer", url: "https://aws.amazon.com/codewhisperer", tipo: "gratis", descripcion: "Asistente de codificación de Amazon que ofrece sugerencias en tiempo real.", palabrasClave: ["codewhisperer", "amazon", "aws", "código", "programación"] },
+                { nombre: "Tabnine", url: "https://www.tabnine.com", tipo: "gratis", descripcion: "Completado de código basado en IA para varios lenguajes de programación.", palabrasClave: ["tabnine", "código", "programación", "completado"] },
+                { nombre: "AlphaCode", url: "https://deepmind.google/technologies/alphacode/", tipo: "gratis", descripcion: "IA de DeepMind para resolver problemas de programación competitiva.", palabrasClave: ["alphacode", "deepmind", "programación", "problemas"] },
+                { nombre: "ExplainDev", url: "https://explain.dev", tipo: "gratis", descripcion: "Herramienta que explica código complejo y genera documentación automáticamente.", palabrasClave: ["explaindev", "código", "documentación", "explicar"] },
+                { nombre: "Kaggle", url: "https://www.kaggle.com", tipo: "gratis", descripcion: "Plataforma de ciencia de datos y aprendizaje automático con acceso a muchos modelos y conjuntos de datos.", palabrasClave: ["kaggle", "datos", "análisis", "ciencia", "machine learning"] },
+                { nombre: "Dataiku", url: "https://www.dataiku.com", tipo: "pagadas", descripcion: "Plataforma colaborativa para el desarrollo y despliegue de proyectos de IA y análisis de datos.", palabrasClave: ["dataiku", "datos", "análisis", "plataforma"] },
+            ],
+        };
+
+        // Almacena todas las IAs en un solo array para facilitar la búsqueda
+        let allIAs = [];
+        for (const key in iasPorCategoria) {
+            allIAs = allIAs.concat(iasPorCategoria[key]);
+        }
+        
+        let currentResults = []; // Almacena los resultados de la última búsqueda para el filtrado
+        
+        /**
+         * Oculta el modal de introducción de forma instantánea.
+         */
+        function closeIntroModal() {
+            const modal = document.getElementById('introModal');
+            // Al hacer clic, simplemente oculta el elemento del DOM de forma instantánea.
+            modal.style.display = 'none';
+        }
+
+        /**
+         * Muestra los resultados de la búsqueda o un mensaje inicial.
+         * @param {Array} ias - Array de objetos IA para mostrar.
+         * @param {string} [message] - Mensaje a mostrar si no hay IAs o al inicio.
+         */
+        function mostrarRecomendaciones(ias, message) {
+            const resultadoDiv = document.getElementById('resultado');
+            resultadoDiv.innerHTML = ''; // Limpiar resultados anteriores
+            
+            // Ocultar/mostrar menú de filtro
+            const menuFiltro = document.getElementById('menuFiltro');
+            if (ias.length > 0) {
+                menuFiltro.classList.remove('hidden');
+                menuFiltro.classList.add('flex', 'flex-col');
+            } else {
+                menuFiltro.classList.add('hidden');
+                menuFiltro.classList.remove('flex', 'flex-col');
+            }
+
+            if (ias.length === 0) {
+                // Mostrar un mensaje si no hay resultados o es la carga inicial
+                resultadoDiv.innerHTML = `
+                    <div class="col-span-full text-center p-8 bg-gray-700 light-mode:bg-gray-200 rounded-xl shadow-inner">
+                        <p class="text-xl font-semibold text-gray-300 light-mode:text-gray-700">
+                            ${message || 'No se encontraron IAs que coincidan con tu descripción. Intenta con una descripción diferente.'}
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Crear y agregar las tarjetas de IA con animación stagger
+            ias.forEach((ia, index) => {
+                const card = document.createElement('div');
+                card.className = `ia-card bg-gray-700 p-5 rounded-xl shadow-lg border border-gray-600 light-mode:bg-white light-mode:border-gray-200 ia-card-enter`;
+                // Aplica el retraso a través de style para la animación stagger
+                card.style.animationDelay = `${index * 0.05}s`;
+                
+                // Determinar estilos de precio
+                const precioClass = ia.tipo === 'gratis' ? 'bg-green-500 light-mode:bg-green-100 text-white light-mode:text-green-700' : 'bg-red-500 light-mode:bg-red-100 text-white light-mode:text-red-700';
+                const precioText = ia.tipo === 'gratis' ? 'Gratis' : 'Pagada';
+
+                card.innerHTML = `
+                    <h5 class="text-2xl font-bold text-blue-400 light-mode:text-blue-700 mb-2">${ia.nombre}</h5>
+                    <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${precioClass} mb-3 shadow-sm">
+                        ${precioText}
+                    </span>
+                    <p class="text-gray-300 light-mode:text-gray-700 text-sm mb-4">${ia.descripcion}</p>
+                    <a href="${ia.url}" target="_blank" rel="noopener noreferrer" 
+                       class="inline-flex items-center justify-center w-full py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors duration-200 text-sm">
+                        Ir a la Herramienta
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 ml-2">
+                            <path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 0 0-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 0 0 .75-.75v-.363a.75.75 0 0 0-1.5 0v.363h-7V6.25l7 0v1.137a.75.75 0 0 0 1.5 0V6.25a.75.75 0 0 0-.75-.75h-8.5Z" clip-rule="evenodd" />
+                            <path fill-rule="evenodd" d="M12.97 4.384a.75.75 0 0 1 .655.772l-.303 3.655a.75.75 0 1 1-1.498-.124l.26-3.143 1.846 1.846a.75.75 0 1 1-1.06 1.06l-2.5-2.5a.75.75 0 0 1 1.06-1.06l1.845 1.845 3.143-.26a.75.75 0 0 1 .772.655Z" clip-rule="evenodd" />
+                        </svg>
+                    </a>
+                `;
+                resultadoDiv.appendChild(card);
+            });
+        }
+        
+        /**
+         * Realiza la búsqueda de IAs basada en el texto de actividad y actualiza los resultados.
+         */
+        function performSearch() {
+            const query = document.getElementById('actividadTexto').value.toLowerCase().trim();
+            if (query.length < 3) {
+                mostrarRecomendaciones([], "Por favor, describe tu actividad con más detalle (mínimo 3 caracteres).");
+                return;
+            }
+
+            // 1. Tokenización y limpieza de la consulta
+            const queryWords = query.split(/\s+/).filter(word => word.length > 2);
+            
+            // 2. Filtrado y puntuación de IAs
+            let scoredIAs = allIAs.map(ia => {
+                let score = 0;
+                
+                // Combina palabras clave, nombre y descripción
+                const searchableText = (ia.palabrasClave.join(' ') + ' ' + ia.nombre + ' ' + ia.descripcion).toLowerCase();
+                
+                queryWords.forEach(word => {
+                    // Puntuación por coincidencia exacta en palabras clave o nombre
+                    if (ia.palabrasClave.includes(word) || ia.nombre.toLowerCase().includes(word)) {
+                        score += 3; 
+                    }
+                    // Puntuación por coincidencia en la descripción
+                    if (ia.descripcion.toLowerCase().includes(word)) {
+                        score += 1;
+                    }
+                });
+                
+                return { ia, score };
+            }).filter(item => item.score > 0); // Solo las que tienen puntuación > 0
+
+            // 3. Ordenar por puntuación (mayor a menor)
+            scoredIAs.sort((a, b) => b.score - a.score);
+            
+            // 4. Seleccionar solo los objetos IA y eliminar duplicados (si existieran, aunque el modelo de datos lo previene)
+            const recommendedIAs = Array.from(new Set(scoredIAs.map(item => item.ia)));
+
+            // Almacenar para futuros filtros
+            currentResults = recommendedIAs;
+            
+            // 5. Mostrar resultados
+            if (recommendedIAs.length > 0) {
+                mostrarRecomendaciones(recommendedIAs, "");
+            } else {
+                mostrarRecomendaciones([], "No encontramos ninguna IA que se ajuste a esa descripción. Intenta ser más específico.");
+            }
+        }
+
+        /**
+         * Filtra los resultados de la búsqueda actual por tipo (gratis, pagadas, todas).
+         * @param {string} tipo - 'gratis', 'pagadas' o 'todas'.
+         */
+        function filtrarPorTipo(tipo) {
+            let filteredIAs = currentResults;
+
+            if (tipo !== 'todas') {
+                filteredIAs = currentResults.filter(ia => ia.tipo === tipo);
+            }
+
+            if (filteredIAs.length > 0) {
+                mostrarRecomendaciones(filteredIAs, "");
+            } else {
+                mostrarRecomendaciones([], `No hay IAs de tipo ${tipo.toUpperCase()} en esta búsqueda.`);
+            }
+        }
+        
+        /**
+         * Maneja el cambio entre el modo oscuro y el modo día.
+         */
+        function toggleTheme() {
+            const body = document.body;
+            const sunIcon = document.getElementById("sunIcon");
+            const moonIcon = document.getElementById("moonIcon");
+            const themeToggle = document.getElementById("themeToggle");
+            
+            body.classList.toggle('light-mode');
+            
+            if (body.classList.contains('light-mode')) {
+                localStorage.setItem('theme', 'light');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+                // Cambiar el color del botón en modo día para mejor contraste
+                themeToggle.classList.remove('bg-gray-800', 'hover:bg-gray-700');
+                themeToggle.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            } else {
+                localStorage.setItem('theme', 'dark');
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+                 // Restaurar el color del botón en modo noche
+                themeToggle.classList.add('bg-gray-800', 'hover:bg-gray-700');
+                themeToggle.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            }
+        }
+
+        /**
+         * Muestra/oculta el buzón de quejas.
+         */
+        function toggleQuejasBox() {
+            const quejasBox = document.getElementById('quejasBox');
+            quejasBox.classList.toggle('show');
+            // Asegúrate de resetear el mensaje de éxito si se oculta y vuelve a mostrar
+            if (quejasBox.classList.contains('show')) {
+                document.getElementById('mensajeQueja').classList.add('hidden');
+            }
+        }
+
+        /**
+         * Simula el envío de la queja/sugerencia.
+         */
+        function enviarQueja() {
+            const quejasTexto = document.getElementById('quejasTexto');
+            const mensajeQueja = document.getElementById('mensajeQueja');
+            const texto = quejasTexto.value.trim();
+
+            if (texto.length > 5) {
+                // Simulación de envío (en un entorno real se enviaría a un servidor)
+                console.log("Sugerencia enviada:", texto);
+                
+                // Mostrar mensaje de éxito
+                mensajeQueja.classList.remove('hidden');
+                
+                // Limpiar el campo de texto
+                quejasTexto.value = '';
+                
+                // Ocultar el mensaje después de 3 segundos
+                setTimeout(() => {
+                    mensajeQueja.classList.add('hidden');
+                    toggleQuejasBox(); // Ocultar el buzón después de enviar
+                }, 3000);
+
+            } else {
+                // Si el mensaje es muy corto
+                mensajeQueja.textContent = 'Escribe al menos 5 caracteres.';
+                mensajeQueja.className = 'mt-2 text-center text-sm text-red-400 light-mode:text-red-600 font-semibold';
+                mensajeQueja.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    mensajeQueja.classList.add('hidden');
+                }, 3000);
+            }
+        }
+
+        // Inicialización al cargar la ventana
+        window.onload = function() {
+            const savedTheme = localStorage.getItem('theme');
+            const sunIcon = document.getElementById("sunIcon");
+            const moonIcon = document.getElementById("moonIcon");
+            const themeToggle = document.getElementById("themeToggle");
+            
+            // 1. El modal se muestra por defecto (no tiene clase 'hidden')
+            
+            // 2. Establecer el tema guardado o el modo oscuro por defecto
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-mode');
+                sunIcon.classList.remove('hidden');
+                moonIcon.classList.add('hidden');
+                themeToggle.classList.remove('bg-gray-800', 'hover:bg-gray-700');
+                themeToggle.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            } else {
+                 // Si es modo oscuro (por defecto o guardado), asegurar luna visible
+                sunIcon.classList.add('hidden');
+                moonIcon.classList.remove('hidden');
+                themeToggle.classList.add('bg-gray-800', 'hover:bg-gray-700');
+            }
+            
+            // 3. Asignar eventos
+            themeToggle.onclick = toggleTheme;
+            
+            // 4. Mostrar mensaje inicial de bienvenida en la sección de resultados
+            mostrarRecomendaciones([], "Ingresa tu actividad para encontrar una IA ideal, por ejemplo: 'Necesito una IA gratuita para crear un logo'.");
+        };
+    </script>
+</body>
+</html>
